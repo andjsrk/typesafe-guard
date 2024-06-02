@@ -1,0 +1,21 @@
+{
+	"name": "typesafe-guard",
+	"description": "An utility for creating type-safe user-defined type guard for TypeScript",
+	"version": "0.1.0",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		"./*": "./dist/*"
+	},
+	"scripts": {
+		"build": "npx tsc",
+		"test": "npx tsc -p tsconfig.test.json && echo all tests passed"
+	},
+	"devDependencies": {
+		"typescript": "^5.4.5"
+	},
+	"files": [
+		"dist"
+	]
+}

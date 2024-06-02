@@ -1,0 +1,13 @@
+{
+	"compilerOptions": {
+		"declaration": true,
+		"forceConsistentCasingInFileNames": true,
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"noEmitOnError": true,
+		"outDir": "dist",
+		"strict": true,
+		"target": "ESNext",
+	},
+	"include": ["src"]
+}
