@@ -15,14 +15,14 @@ export type Predicate<T extends Req, Req = unknown> =
 export type Asserter<T extends Req, Req = unknown> =
 	(x: Req) => asserts x is T
 
-type PredicateFn<T> = (x: unknown, ok: (properlyTyped: T) => Ok) => Ok | undefined
+type PredicateFn<T, Req = unknown> = (x: Req, ok: (properlyTyped: T) => Ok) => Ok | undefined
 
 const ok = Symbol('ok')
 type Ok = typeof ok
 
 export const predicateFor = <T>() =>
-	(f: PredicateFn<T>) =>
-		(x: unknown): x is T => {
+	<Req = unknown>(f: PredicateFn<T, Req>) =>
+		(x: Req): x is Req & T => {
 			const res = f(x, _ => ok)
 			if (res !== ok && res !== undefined) {
 				throw new TypeError('The predicate function returned a value other than ok, undefined.')

@@ -16,3 +16,8 @@ predicateFor<string>()((x, ok) =>
 	// @ts-expect-error
 	ok(x)
 )
+
+predicateFor<'a'>()((x: string, ok) => {
+	if (x !== 'a') return
+	return ok(x)
+})
