@@ -83,13 +83,13 @@ type OrResult<Preds extends Array<Predicate<any, any>>> =
 		? unknown
 		: ExtractTIntoTuple<Preds[number]>[0]
 /**
- * @param preds Note that the predicate functions must accept `unknown`
+ * @param predicates Note that the predicate functions must accept `unknown`
  * because there is no safe and convenient way to require multiple non-`unknown` types at the same time.
  * @returns A predicate function that returns whether the value satisfies any of specified types.
  */
-export const or = <Predicates extends Array<Predicate<any>>>(...preds: Predicates) =>
+export const or = <Predicates extends Array<Predicate<any>>>(...predicates: Predicates) =>
 	(x: unknown): x is OrResult<Predicates> =>
-		preds.some(pred => pred(x))
+		predicates.some(pred => pred(x))
 
 type ExtractStrictBase<PredicateU extends Predicate<any, any>> =
 	UnionToIntersection<ExtractReqIntoTuple<PredicateU>> extends [infer I]
@@ -100,31 +100,37 @@ type ExtractStrictBase<PredicateU extends Predicate<any, any>> =
  * an intersection of requirement of the predicate functions.
  * @returns A predicate function that returns whether the value satisfies any of specified types.
  */
-export const orStrict = <Predicates extends Array<Predicate<any, any>>>(...preds: Predicates) =>
+export const orStrict = <Predicates extends Array<Predicate<any, any>>>(...predicates: Predicates) =>
 	(x: ExtractStrictBase<Predicates[number]>): x is typeof x & OrResult<Predicates> =>
-		preds.some(pred => pred(x))
+		predicates.some(pred => pred(x))
 
 type AndResult<Preds extends Array<Predicate<any, any>>> =
 	[] extends Preds
 		? unknown
 		: (UnionToIntersection<ExtractTIntoTuple<Preds[number]>> & [unknown])[0]
 /**
- * @param preds Note that the predicate functions must accept `unknown`
+ * @param predicates Note that the predicate functions must accept `unknown`
  * because there is no safe and convenient way to require multiple non-`unknown` types at the same time.
  * @returns A predicate function that returns whether the value satisfies all specified types.
  */
-export const and = <Predicates extends Array<Predicate<any>>>(...preds: Predicates) =>
+export const and = <Predicates extends Array<Predicate<any>>>(...predicates: Predicates) =>
 	(x: unknown): x is AndResult<Predicates> =>
-		preds.every(pred => pred(x))
+		predicates.every(pred => pred(x))
 /**
  * Unlike {@link and}, the predicate function that returned by this function accepts
  * an intersection of requirement of the predicate functions.
  * @returns A predicate function that returns whether the value satisfies all specified types.
  */
-export const andStrict = <Predicates extends Array<Predicate<any, any>>>(...preds: Predicates) =>
+export const andStrict = <Predicates extends Array<Predicate<any, any>>>(...predicates: Predicates) =>
 	(x: ExtractStrictBase<Predicates[number]>): x is typeof x & AndResult<Predicates> =>
-		preds.every(pred => pred(x))
+		predicates.every(pred => pred(x))
 
+/**
+ * Note that the narrowing type is `any`, which is unsafe but convenient.
+ * 
+ * @see {@link isAny}
+ */
+export const isAnyUnsafe = (x: unknown): x is any => true
 /**
  * The predicate function is useful on collections like tuples.
  * If you want to require an element to be exist but not require anything on it,
@@ -141,53 +147,47 @@ export const andStrict = <Predicates extends Array<Predicate<any, any>>>(...pred
  * }
  * ```
  */
-export const isAny = (x: unknown): x is unknown => true
-/**
- * Note that the narrowing type is `any`, which is unsafe but convenient.
- * 
- * @see {@link isAny}
- */
-export const isAnyUnsafe = (x: unknown): x is any => true
+export const isAny: (x: unknown) => x is unknown = isAnyUnsafe
 /**
  * @returns Whether the value is a `string`.
  */
-export const isString = (x: unknown): x is string =>
+export const isString = (x: unknown) =>
 	typeof x === 'string'
 /**
  * @returns Whether the value is a `number`.
  */
-export const isNumber = (x: unknown): x is number =>
+export const isNumber = (x: unknown) =>
 	typeof x === 'number'
 /**
  * @returns Whether the value is a `boolean`.
  */
-export const isBoolean = (x: unknown): x is boolean =>
+export const isBoolean = (x: unknown) =>
 	typeof x === 'boolean'
 /**
  * @returns Whether the value is a `BigInt`.
  */
-export const isBigInt = (x: unknown): x is bigint =>
+export const isBigInt = (x: unknown) =>
 	typeof x === 'bigint'
 /**
  * @returns Whether the value is `null`.
  */
-export const isNull = (x: unknown): x is null =>
+export const isNull = (x: unknown) =>
 	x === null
 /**
  * @returns Whether the value is `undefined`.
  */
-export const isUndefined = (x: unknown): x is undefined =>
+export const isUndefined = (x: unknown) =>
 	x === undefined
 /**
  * @returns Whether the value is a `Symbol`.
  */
-export const isSymbol = (x: unknown): x is symbol =>
+export const isSymbol = (x: unknown) =>
 	typeof x === 'symbol'
 
 /**
  * @returns Whether the value is an object.
  */
-export const isObject = (x: unknown): x is object =>
+export const isObject = (x: unknown) =>
 	typeof x === 'object' && !isNull(x)
 
 type PropsResolved<P extends Record<PropertyKey, Predicate<any, any>>> =
@@ -235,19 +235,19 @@ export const isKeyOf = <T extends object>(obj: T) =>
 		isKey(key) && key in obj
 
 /**
- * @returns Whether the value is an array, regardless of its contents.
- */
-export const isArray: (x: unknown) => x is Array<unknown> = Array.isArray
-/**
  * Note that the narrowing type is `Array<any>`, which is unsafe but convenient.
  * 
  * @see {@link isArray}
  */
-export const isArrayUnsafe: (x: unknown) => x is Array<any> = isArray
+export const isArrayUnsafe: (x: unknown) => x is Array<any> = Array.isArray
+/**
+ * @returns Whether the value is an array, regardless of its contents.
+ */
+export const isArray: (x: unknown) => x is Array<unknown> = isArrayUnsafe
 /**
  * @returns Whether the value is an array of specific type.
  */
-export const isArrayOf = <T>(predicate: (x: unknown) => x is T) =>
+export const isArrayOf = <T>(predicate: Predicate<T>) =>
 	(x: unknown): x is Array<T> =>
 		isArray(x) && x.every(predicate)
 
