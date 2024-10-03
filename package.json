@@ -1,7 +1,7 @@
 {
 	"name": "typesafe-guard",
 	"description": "An utility for creating type-safe user-defined type guard for TypeScript",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/andjsrk/typesafe-guard.git"
@@ -11,6 +11,7 @@
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
 	"exports": {
+		".": "./dist/index.js",
 		"./*": "./dist/*"
 	},
 	"scripts": {
