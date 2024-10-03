@@ -126,6 +126,29 @@ export const andStrict = <Predicates extends Array<Predicate<any, any>>>(...pred
 		preds.every(pred => pred(x))
 
 /**
+ * The predicate function is useful on collections like tuples.
+ * If you want to require an element to be exist but not require anything on it,
+ * you can use this predicate function.
+ * Note that the predicate function does not narrow the input to `any`.
+ * 
+ * @returns `true`.
+ * 
+ * @example
+ * ```ts
+ * const tuple = [1, 2, 3]
+ * if (isTuple(isAny, isNumber, isNumber)(tuple)) {
+ *   // tuple: [unknown, number, number]
+ * }
+ * ```
+ */
+export const isAny = (x: unknown): x is unknown => true
+/**
+ * Note that the narrowing type is `any`, which is unsafe but convenient.
+ * 
+ * @see {@link isAny}
+ */
+export const isAnyUnsafe = (x: unknown): x is any => true
+/**
  * @returns Whether the value is a `string`.
  */
 export const isString = (x: unknown): x is string =>
@@ -216,8 +239,9 @@ export const isKeyOf = <T extends object>(obj: T) =>
  */
 export const isArray: (x: unknown) => x is Array<unknown> = Array.isArray
 /**
- * @returns Whether the value is an array, regardless of its contents.
- * Note that the return type is `Array<any>`, which is unsafe but convenient.
+ * Note that the narrowing type is `Array<any>`, which is unsafe but convenient.
+ * 
+ * @see {@link isArray}
  */
 export const isArrayUnsafe: (x: unknown) => x is Array<any> = isArray
 /**

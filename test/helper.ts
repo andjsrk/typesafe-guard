@@ -1,4 +1,4 @@
-import { and, andStrict, asserter, isArray, isArrayOf, isArrayUnsafe, isBigInt, isBoolean, isEqual, isInstanceOf, isKey, isKeyOf, isNull, isNumber, isObject, isObjectWithProps, isString, isSymbol, isTuple, isUndefined, looserCondition, not, or, orStrict } from '../src/helper.js'
+import { and, andStrict, asserter, isAny, isArray, isArrayOf, isArrayUnsafe, isBigInt, isBoolean, isEqual, isInstanceOf, isKey, isKeyOf, isNull, isNumber, isObject, isObjectWithProps, isString, isSymbol, isTuple, isUndefined, looserCondition, not, or, orStrict } from '../src/helper.js'
 import type { Asserter } from '../src/predicate.js'
 
 asserter(isString) satisfies (x: unknown) => asserts x is string
@@ -14,7 +14,7 @@ if (isNull(x)) x satisfies null
 if (isUndefined(x)) x satisfies undefined
 if (isSymbol(x)) x satisfies symbol
 if (isObject(x)) x satisfies object
-if (isObjectWithProps({ foo: (x: unknown): x is unknown => true })(x)) {
+if (isObjectWithProps({ foo: isAny })(x)) {
 	x satisfies object
 	x satisfies { foo: unknown }
 }
