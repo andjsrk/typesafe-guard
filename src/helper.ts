@@ -174,12 +174,28 @@ type PropsResolved<P extends Record<PropertyKey, Predicate<any, any>>> =
 /**
  * @returns Whether the value is an object with specific properties.
  */
-export const isObjectWithProps = <P extends Record<PropertyKey, Predicate<any>>>(props: P) =>
-	(x: unknown): x is object & PropsResolved<P> => {
+export const isObjectWithProps: {
+	<
+		Props extends Record<PropertyKey, Predicate<any>>,
+		OptProps extends Record<PropertyKey, Predicate<any>>,
+	>(props: Props, optionalProps: OptProps):
+		(x: unknown) => x is object & PropsResolved<Props> & Partial<PropsResolved<OptProps>>
+	<
+		Props extends Record<PropertyKey, Predicate<any>>,
+	>(props: Props):
+		(x: unknown) => x is object & PropsResolved<Props>
+} = (
+	props: Record<PropertyKey, Predicate<any>>,
+	optionalProps: Record<PropertyKey, Predicate<any>> = {}, // TODO: better design for optional properties
+) =>
+	(x: unknown): x is any => {
 		if (!isObject(x)) return false
 		const isKeyOfX = isKeyOf(x)
 		for (const key of keys(props)) {
 			if (!isKeyOfX(key) || !props[key](x[key])) return false
+		}
+		for (const key of keys(optionalProps)) {
+			if (isKeyOfX(key) && !props[key](x[key])) return false
 		}
 		return true
 	}
