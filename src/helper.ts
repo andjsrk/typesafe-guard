@@ -1,5 +1,4 @@
 import type { Predicate } from './predicate.js'
-import { keys } from './prelude.js'
 
 type Expand<O> =
 	O extends O
@@ -214,10 +213,10 @@ export const isObjectWithProps: {
 	(x: unknown): x is any => {
 		if (!isObject(x)) return false
 		const isKeyOfX = isKeyOf(x)
-		for (const key of keys(props)) {
+		for (const key in props) {
 			if (!isKeyOfX(key) || !props[key](x[key])) return false
 		}
-		for (const key of keys(optionalProps)) {
+		for (const key in optionalProps) {
 			if (isKeyOfX(key) && !props[key](x[key])) return false
 		}
 		return true
