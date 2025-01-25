@@ -1,5 +1,6 @@
-import type { Asserter } from './predicate.js'
-import { asserter, isKeyOf, isNull, isUndefined, not, or } from './helper.js'
+import type { Predicate } from './predicate.js'
+import { type Asserter, asserterFromPredicate } from './asserter.js'
+import { isKeyOf, isNull, isUndefined, not, or } from './helper.js'
 
 /**
  * @returns Whether the value is either `null` or `undefined`.
@@ -18,13 +19,13 @@ export const isNullish = or(isNull, isUndefined)
  * }
  * ```
  */
-export const isNotNullish = not(isNullish) as (x: unknown) => x is {}
+export const isNotNullish = not(isNullish) as Predicate<{}>
 
 /**
- * @returns The object's own enumerable property keys (including symbols).
+ * @returns A generator that yields the object's own enumerable property keys (including symbols).
  */
-export function* keys<T extends object>(obj: T) {
-	const assertKey: Asserter<keyof T> = asserter(isKeyOf(obj))
+export function* objectKeys<T extends object>(obj: T) {
+	const assertKey: Asserter<keyof T> = asserterFromPredicate(isKeyOf(obj))
 	for (const key of Reflect.ownKeys(obj)) {
 		assertKey(key)
 		if (!Object.prototype.propertyIsEnumerable.call(obj, key)) continue
@@ -32,10 +33,10 @@ export function* keys<T extends object>(obj: T) {
 	}
 }
 /**
- * @returns The object's own enumerable string property keys.
+ * @returns A generator that yields the object's own enumerable string property keys.
  */
-export function* stringKeys<T extends object>(obj: T) {
-	const assertKey: Asserter<keyof T> = asserter(isKeyOf(obj))
+export function* objectStringKeys<T extends object>(obj: T) {
+	const assertKey: Asserter<keyof T> = asserterFromPredicate(isKeyOf(obj))
 	for (const key of Object.keys(obj)) {
 		assertKey(key)
 		yield key satisfies string & keyof T
@@ -49,18 +50,18 @@ type Entries<T extends object, Req = unknown> =
 			: never
 		: never
 /**
- * @returns An array of key/values of the enumerable properties of the object (including symbol keys).
+ * @returns A generator that yields the object's enumerable properties (including symbol keys) with format `[key, value]`.
  */
-export function* entries<T extends object>(obj: T) {
-	for (const key of keys(obj)) {
+export function* objectEntries<T extends object>(obj: T) {
+	for (const key of objectKeys(obj)) {
 		yield [key, obj[key]] satisfies [keyof T, T[keyof T]] as Entries<T>
 	}
 }
 /**
- * @returns An array of key/values of the enumerable string key properties of the object.
+ * @returns A generator that yields the object's enumerable string key properties with format `[key, value]`.
  */
-export function* stringKeyEntries<T extends object>(obj: T) {
-	for (const key of stringKeys(obj)) {
+export function* objectStringKeyEntries<T extends object>(obj: T) {
+	for (const key of objectStringKeys(obj)) {
 		yield [key, obj[key]] satisfies [string & keyof T, T[string & keyof T]] as Entries<T, string>
 	}
 }

@@ -25,44 +25,32 @@ type ExtractReqIntoTuple<PredicateU extends Predicate<any, any>> =
 		: never
 
 /**
- * Creates an asserter from a predicate function.
+ * @returns A {@link Predicate} that returns the opposite of the original.
  * 
- * @param predicate A predicate to convert from.
- * @param errorProvider A function that returns an error. If not specified, default error will be thrown.
- * @returns A function that asserts the value is {@link T}.
- */
-export const asserter = <T extends Req, Req>(predicate: Predicate<T, Req>, errorProvider: (() => Error) | null = null) =>
-	(x: Req): asserts x is T => {
-		if (!predicate(x)) throw errorProvider?.() ?? new TypeError('Type does not match.')
-	}
-/**
- * @returns A predicate function that returns the opposite of the original.
- * 
- * Note that the function narrows the value using `Exclude<T, U>`,
- * which is not effective for some cases like `isNullish`,
+ * Note that the function narrows the value using {@link Exclude} which is not effective for some cases like {@link isNullish},
  * because there is no [negated types](https://github.com/microsoft/TypeScript/issues/4196) yet.
  */
-export const not = <T extends Base, Base>(predicate: Predicate<T, Base>) =>
-	<B extends Base>(x: B): x is Exclude<B, T> =>
+export const not = <T extends Req, Req>(predicate: Predicate<T, Req>) =>
+	<B extends Req>(x: B): x is Exclude<B, T> =>
 		!predicate(x)
 
 /**
- * @returns A predicate function that accepts looser input than original strict one.
+ * @returns A {@link Predicate} with looser requirement than the original strict one.
  */
-export const looserCondition = <T extends Base, Base>(loose: Predicate<T, Base>) =>
+export const withLooserRequirement = <T extends Req, Req>(loose: Predicate<T, Req>) =>
 	<U extends T>(strict: Predicate<U, T>) =>
-		(x: Base): x is U =>
+		(x: Req): x is U =>
 			loose(x) && strict(x)
 
 /**
- * @returns A predicate function that returns whether the value is equal to the given value.
+ * @returns A predicate that returns whether the value is equal to the given value.
  */
 export const isEqual = <const T>(value: T) =>
 	(x: unknown): x is T =>
 		x === value
 
 /**
- * @returns A predicate function that returns whether the value is an instance of the given class.
+ * @returns A predicate that returns whether the value is an instance of the given class.
  * 
  * @example
  * ```ts

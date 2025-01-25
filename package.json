@@ -1,22 +1,23 @@
 {
 	"name": "typesafe-guard",
-	"description": "An utility for creating type-safe user-defined type guard for TypeScript",
-	"version": "0.2.3",
+	"description": "A utility for writing type guard type-safely, for TypeScript",
+	"version": "0.3.0",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/andjsrk/typesafe-guard.git"
 	},
 	"homepage": "https://github.com/andjsrk/typesafe-guard",
 	"type": "module",
-	"main": "dist/index.js",
-	"types": "dist/index.d.ts",
 	"exports": {
-		".": "./dist/index.js",
-		"./*": "./dist/*"
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
 	},
 	"scripts": {
-		"build": "npx tsc",
-		"test": "npx tsc -p tsconfig.test.json && echo all tests passed"
+		"build": "tsc",
+		"test": "tsc -p tsconfig.test.json && echo all tests passed",
+		"prepublishOnly": "npm run build"
 	},
 	"devDependencies": {
 		"typescript": "^5.6.2"
@@ -28,7 +29,9 @@
 		"typescript",
 		"type-guards",
 		"predicate-functions",
-		"builder",
+		"predicates",
+		"validation",
+		"validator",
 		"utility",
 		"library"
 	]

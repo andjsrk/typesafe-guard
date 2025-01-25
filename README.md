@@ -56,11 +56,26 @@ const isA = predicateFor<A>()((x, ok) => {
 })
 ```
 \
-:information_source: You can also create assertion functions from predicate functions!
+:information_source: You can derive an assertion function from a predicate function:
 ```ts
-const assertString: Asserter<string> = asserter(isString)
+const assertString: Asserter<string> = asserterFromPredicate(isString)
 //                  ^^^^^^^^^^^^^^^^
 //                  you need to specify the type yet because
 //                  TS requires an explicit type annotation
 //                  on assertion functions
+```
+
+:information_source: You can write a validator, which is a predicate with fail reason:
+```ts
+const validateString = validatorFor<string>()((x, ok, fail) => {
+	if (!isString(x)) return fail('Not a string.')
+	
+	return ok(x)
+})
+
+// you can derive a predicate function from a validator
+const myIsString = predicateFromValidator(validateString)
+
+// you can derive an asserter from a validator
+const assertString: Asserter<string> = asserterFromValidator(validateString)
 ```
