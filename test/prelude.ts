@@ -1,9 +1,10 @@
 import * as p from '../src/prelude.js'
+import { is } from '../src/predicate.js'
 
 declare const x: unknown
 
-if (p.isNullish(x)) x satisfies null | undefined
-if (p.isNotNullish(x)) x satisfies {}
+if (is(x, p.nullish)) x satisfies null | undefined
+if (is(x, p.notNullish)) x satisfies {}
 {
 	const obj = { foo: 0, [Symbol()]: 0 }
 	type ObjKey = keyof typeof obj

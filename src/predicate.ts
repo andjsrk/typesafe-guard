@@ -1,31 +1,15 @@
-import { type InstantiatedOkFn, type Ok, type Validator, validatorFor } from './validator.js'
+import { AnyIntermediateValidator, validate, type IntermediateValidator } from './validator.js'
 
 /**
- * Indicates a predicate function.
- * 
- * @template T The type that the function narrows into.
- * @template Req The requirement for the argument of the function.
+ * @returns A predicate function that returns whether the value passes the given validator.
  */
-export type Predicate<T extends Req, Req = unknown> =
-	(x: Req) => x is T
-
+export function is<T extends Req, Req>(iv: IntermediateValidator<T, any, Req>): (x: Req) => x is T & Req
 /**
- * Creates a predicate from a validator.
- * 
- * @returns A predicate.
+ * @returns Whether the value passes the given validator.
  */
-export const predicateFromValidator = <T extends Req, Req = unknown>(validator: Validator<T, unknown, Req>): Predicate<T, Req> => {
-	return (x): x is T => validator(x).ok
+export function is<T extends Req, Req>(x: NoInfer<Req>, iv: IntermediateValidator<T, any, Req>): x is T & Req
+export function is(xOrIv: any, iv?: AnyIntermediateValidator) {
+	if (!iv) return (x: unknown) => is(xOrIv)(x)
+	
+	return validate(xOrIv, iv).ok
 }
-
-/**
- * A helper function for building a predicate function.
- */
-export const predicateFor = <T>() =>
-	<Req = unknown>(f: (x: Req, ok: InstantiatedOkFn<T>) => Ok<T & Req> | undefined) => {
-		const validator = validatorFor<T>()((x: Req, ok, fail) =>
-			f(x, ok) ?? fail('')
-		)
-		
-		return predicateFromValidator(validator)
-	}

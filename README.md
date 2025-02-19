@@ -1,81 +1,128 @@
 # typesafe-guard
 > :information_source: The package is ESM-only.
 
-An utility for creating type-safe user-defined type guard for TypeScript.
+A utility for creating type-safe user-defined type guard for TypeScript.
 
 # Motivation
-Writing predicate functions is not type-safe because TS trusts the implementation completely even it is invalid:
+Writing predicate functions is not type-safe because
+TS trusts the implementation completely even it is invalid:
 ```ts
 const isObject = (x: unknown): x is object => true // always true!
-const a: string | object = 'some string'
-if (isObject(a)) {
-	// now TS treats `a` as an object, even actually it is not
+const strOrObj: string | object = 'some string'
+if (isObject(strOrObj)) {
+	// now TS treats `strOrObj` as an object, even actually it is not
 }
 ```
-So I made a more safe way to writing predicate functions,
+So I made a more safe way to writing predicate functions
+&mdash;not only for predicate functions, actually&mdash;
 by requiring narrowing the value to the goal type!
 
 # Usage
-:white_check_mark: Compiles successfully
+First, write a validator:
 ```ts
-interface A {
-	a: string
-	b: number
+interface User {
+	name: string
+	age: number
 }
-const isA = predicateFor<A>()((x, ok) => {
-	if (!isObjectWithProps({
-		a: isString,
-		b: isNumber,
-	})(x)) return
-
-	return ok(x)
-})
-```
-\
-:x: Error (which is intended)
-```ts
-interface A {
-	a: string
-	b: number
-}
-const isA = predicateFor<A>()((x, ok) => {
-	if (!isObject(x)) return
-
-	return ok(x) // error, because x is not narrowed enough
-})
-```
-```ts
-interface A {
-	a: string
-	b: number
-}
-const isA = predicateFor<A>()((x, ok) => {
-	if (!isObject(x)) return
-
-	// error, because the function does not return `ok(...)`
-})
-```
-\
-:information_source: You can derive an assertion function from a predicate function:
-```ts
-const assertString: Asserter<string> = asserterFromPredicate(isString)
-//                  ^^^^^^^^^^^^^^^^
-//                  you need to specify the type yet because
-//                  TS requires an explicit type annotation
-//                  on assertion functions
-```
-
-:information_source: You can write a validator, which is a predicate with fail reason:
-```ts
-const validateString = validatorFor<string>()((x, ok, fail) => {
-	if (!isString(x)) return fail('Not a string.')
+const User = validatorFor<User>()(function*(x) {
+	const user = yield* objectWithProps({
+		name: string,
+		age: number,
+	})(x)
 	
-	return ok(x)
+	// you can make the validation fail, by `throw yield ...`
+	if (user.age <= 0) throw yield 'The user\'s age is not positive.'
+	
+	return user
 })
 
-// you can derive a predicate function from a validator
-const myIsString = predicateFromValidator(validateString)
-
-// you can derive an asserter from a validator
-const assertString: Asserter<string> = asserterFromValidator(validateString)
+// examples of INVALID usage
+const User = validatorFor<User>()(function*(x) {
+	const user = yield* object(x)
+	
+	return user // error, because the value is not narrowed enough
+})
+const User = validatorFor<User>()(function*(x) {
+	const user = yield* object(x)
+	
+	// error, because the function does not return anything
+})
 ```
+Then, use the validator wherever you want:
+```ts
+// for validation
+const res = validate(someValue, User) // Result<User, string>
+if (res.ok) {
+	// validation succeeded
+	const user = res.value // user: User
+} else {
+	// validation failed
+	const reason = res.reason // reason: string
+}
+
+// for predicate function
+if (is(someValue, User)) {
+	// someValue: User
+}
+
+// for assertion
+assertIs(someValue, User)
+// someValue: User
+```
+
+:information_source: An alternative way to `const foo = yield* someValidator(x)`,
+you can use the assertion function `require()`:
+```ts
+validatorFor<User>()(function*(x) {
+	require(x, yield* objectWithProps({
+		name: string,
+		age: number,
+	})(x))
+	// now x is narrowed
+	
+	return x
+})
+```
+
+:information_source: You can write a validator first, then derive a type from the validator:
+```ts
+const User = validator(function*(x) {
+	const user = yield* objectWithProps({
+		name: string,
+		age: number,
+	})
+	
+	return user
+})
+type User = ValidationTargetOf<typeof User>
+// type User = {
+//   name: string
+//   age: number
+// }
+```
+
+:information_source: If your validator is just a combination of other validators,
+you can just eject the contents of the validator:
+```ts
+const User = objectWithProps({
+	name: string,
+	age: number,
+})
+// or if you want to check its type
+const User = validatorFor<User>()(objectWithProps({
+	name: string,
+	age: number,
+}))
+
+is(someValue, User) // ok
+```
+
+:information_source: All validators are just a validator, whether yours or built-ins:
+```ts
+is(someValue, string) // ok
+
+validator(function*(x) {
+	const user = yield* User(x) // ok
+	
+	return user
+})

@@ -1,74 +1,51 @@
-import { isString, predicateFor, Validator, validatorFor } from '../src/index.js'
+import { IntermediateValidator, require, Result, validate, validator, validatorFor } from '../src/validator'
+import { is } from '../src/predicate'
+import { assertIs } from '../src/assert'
 
-validatorFor<string>()((x, ok, fail) => {
-	if (typeof x !== 'string') return fail('not a string')
-	return ok(x)
+const myString = validator(function*(x) {
+	if (typeof x != 'string') throw yield 0
+	return x
 })
-{
-	// you have to specify either generic argument or type annotation explicitly
-	// since TS does not infer `E` from `fail(...)`
-	
-	const v = validatorFor<string>()((x, ok, fail) => {
-		if (typeof x !== 'string') {
-			return fail(
-				// @ts-expect-error
-				0
-			)
-		}
-		return ok(x)
-	})
-	// @ts-expect-error
-	v satisfies
-		Validator<string, number>
-}
-{
-	const vAnnotation: Validator<unknown, boolean> = validatorFor()((x, ok, fail) => {
-		fail(true)
-		fail(
-			// @ts-expect-error
-			0
-		)
-		return ok(x)
-	})
-	
-	const vGenericArg = validatorFor()<boolean>((x, ok, fail) => {
-		fail(true)
-		fail(
-			// @ts-expect-error
-			0
-		)
-		return ok(x)
-	})
-}
+
+// without requirement
+validator(function*(x) {
+	if (0) throw yield 'error' as const
+	return 'ok' as const
+}) satisfies IntermediateValidator<'ok', 'error', unknown>
 
 // with requirement
-validatorFor<'a'>()((x: string, ok, fail) => {
-	if (x !== 'a') return fail('not \'a\'')
-	
-	return ok(x)
-})
+validator(function*(x: string) {
+	if (0) throw yield 'error' as const
+	return 'ok' as const
+}) satisfies IntermediateValidator<'ok', 'error', string>
+
+validatorFor<'ok'>()(function*(x: string) {
+	if (0) throw yield 'error' as const
+	return 'ok'
+}) satisfies IntermediateValidator<'ok', 'error', string>
+
+// the first way to narrow the input: `require(x, yield* someValidator(x))`
+validator(function*(x) {
+	require(x, yield* myString(x))
+	return x
+}) satisfies IntermediateValidator<string, number, unknown>
+
+// the second way to narrow the input: `const foo = yield* someValidator(x)`
+validator(function*(x) {
+	const str = yield* myString(x)
+	return str // or `return yield* myString(x)`
+}) satisfies IntermediateValidator<string, number, unknown>
 
 
 
-predicateFor<string>()((x, ok) => {
-	// without any helper in the package
-	if (typeof x !== 'string') return
-	return ok(x)
-})
+declare const x: unknown
 
-predicateFor<string>()((x, ok) => {
-	// with helper
-	if (!isString(x)) return
-	return ok(x)
-})
+validate(x, myString) satisfies Result<string, number>
 
-predicateFor<string>()((x, ok) =>
-	// @ts-expect-error
-	ok(x)
-)
+if (is(x, myString)) x satisfies string
 
-// with requirement
-predicateFor<'a'>()((x: string, ok) => {
-	if (x !== 'a') return
-	return ok(x)
-})
+// we created a function, to prevent scope pollution by an assertion
+;() => {
+	assertIs(x, myString)
+	x satisfies string
+}

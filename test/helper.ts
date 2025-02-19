@@ -1,96 +1,92 @@
-import { type Asserter, asserterFromPredicate } from '../src/asserter.js'
 import * as h from '../src/helper.js'
-
-asserterFromPredicate(h.isString) satisfies (x: unknown) => asserts x is string
+import { IntermediateValidator, Result, validate, validator } from '../src/validator.js'
+import { assertIs } from '../src/assert.js'
+import { is } from '../src/predicate.js'
 
 declare const x: unknown
 
-// simple helpers
-if (h.isString(x)) x satisfies string
-if (h.isNumber(x)) x satisfies number
-if (h.isBoolean(x)) x satisfies boolean
-if (h.isBigInt(x)) x satisfies bigint
-if (h.isNull(x)) x satisfies null
-if (h.isUndefined(x)) x satisfies undefined
-if (h.isSymbol(x)) x satisfies symbol
-if (h.isObject(x)) x satisfies object
-if (h.isObjectWithProps({ foo: h.isAny })(x)) {
+validate(x, h.number) satisfies Result<number, string>
+
+// we created a function, to prevent scope pollution by an assertion
+;() => {
+	assertIs(x, h.string)
+	x satisfies string
+}
+
+if (is(x, h.string)) x satisfies string
+
+if (is(x, h.objectWithProps({ foo: h.any }))) {
 	x satisfies object
 	x satisfies { foo: unknown }
 }
-if (h.isObjectWithProps({ foo: h.isAny }, { bar: h.isAny })(x)) {
+if (is(x, h.objectWithProps({ foo: h.any }, { bar: h.any }))) {
 	// additional checks
-
+	
+	// @ts-expect-error
+	x satisfies { bar: unknown }
 	x satisfies { bar?: unknown }
 	// @ts-expect-error
 	x satisfies { bar?: never }
 }
-if (h.isKey(x)) x satisfies PropertyKey
 {
 	const obj = { foo: 0, [Symbol()]: 0 }
-	if (h.isKeyOf(obj)(x)) {
+	if (is(x, h.keyOf(obj))) {
 		x satisfies keyof typeof obj
 		// @ts-expect-error
 		x satisfies never
 	}
 }
-if (h.isArray(x)) {
+if (is(x, h.array)) {
 	x satisfies Array<unknown>
 	// @ts-expect-error
 	x satisfies Array<string/* any more specific type than `unknown` */>
 }
-if (h.isArrayUnsafe(x)) {
+if (is(x, h.arrayUnsafe)) {
 	x satisfies Array<unknown>
 	x satisfies Array<0> & Array<1> // logically impossible type but not direct use of `never`
 	
 	// @ts-expect-error
 	0 as any satisfies never // FYI, `any` is not assignable to direct `never` but indirect one is
 }
-if (h.isArrayOf(h.isString)(x)) x satisfies Array<string>
-if (h.isTuple()(x)) x satisfies []
-if (h.isTuple(h.isString)(x)) x satisfies [string]
-if (h.isTuple(h.isString, h.isNumber)(x)) x satisfies [string, number]
+if (is(x, h.arrayOf(h.string))) x satisfies Array<string>
+if (is(x, h.tuple())) x satisfies []
+if (is(x, h.tuple(h.string))) x satisfies [string]
+if (is(x, h.tuple(h.string, h.number))) x satisfies [string, number]
 
 // complex helpers
 {
 	const x = 0 as string | number
-	if (h.not(h.isString)(x)) {
+	if (is(x, h.not<number>()(h.string))) {
 		x satisfies number
 		// @ts-expect-error
 		x satisfies string
 	}
 }
-{
-	const strict = <T extends object>(obj: T) =>
-		<K extends PropertyKey>(key: K): key is K & keyof T =>
-			key in obj
-	const obj = { a: 0 }
-	h.withLooserRequirement(h.isKey)(strict(obj)) satisfies (x: unknown) => x is keyof typeof obj
-}
-if (h.isEqual(0)(x)) x satisfies 0
-if (h.isEqual([0])(x)) x satisfies readonly [0]
+if (is(x, h.equal(0))) x satisfies 0
+if (is(x, h.equal([0]))) x satisfies readonly [0]
 {
 	class A { foo: unknown }
-	if (h.isInstanceOf(A)(x)) x satisfies A
+	if (is(x, h.instanceOf(A))) x satisfies A
 }
 {
 	const pickyIsKeyOf =
 		<T extends object>(obj: T) =>
-			(key: PropertyKey): key is keyof T =>
-				key in obj
+			validator(function*(key: PropertyKey) {
+				return yield* h.keyOf(obj)(key)
+			})
 	const obj = { foo: 0 }
 	const key = 'foo' as PropertyKey
-
+	
 	// or
-
-	// `or` only accepts predicates that accepts `unknown`
+	
+	// `or` only accepts validators that requires `unknown`
 	h.or(
 		// @ts-expect-error
 		pickyIsKeyOf(
 			obj
 		)
 	)
-	if (h.or(h.isKey, h.isBoolean)(x)) {
+	if (is(x, h.or(h.key, h.boolean))) {
 		x satisfies PropertyKey | boolean
 		// @ts-expect-error
 		x satisfies PropertyKey
@@ -99,51 +95,51 @@ if (h.isEqual([0])(x)) x satisfies readonly [0]
 	}
 	
 	// `orStrict` preserves requirements
-	h.orStrict(pickyIsKeyOf(obj))(
+	is(
 		// @ts-expect-error
-		x
+		x,
+		h.orStrict(pickyIsKeyOf(obj))
 	)
-	if (h.orStrict(pickyIsKeyOf(obj), h.isNumber/* compatible type */)(key)) {
-		key satisfies keyof typeof obj | number
+	h.orStrict(pickyIsKeyOf(obj), h.number) satisfies IntermediateValidator<number | keyof typeof obj, string, PropertyKey>
+	if (is(key, h.orStrict(pickyIsKeyOf(obj), h.number/* compatible type */))) {
+		key satisfies number | keyof typeof obj
 		// @ts-expect-error
 		key satisfies keyof typeof obj
 		// @ts-expect-error
 		key satisfies number
 	}
-	if (h.orStrict(pickyIsKeyOf(obj), h.isBoolean/* incompatible type */)(key)) {
+	// NOTE: the requirement of the validator is `PropertyKey` and validation target must be a subtype of the requirement,
+	// so the target of the validator is `PropertyKey & (boolean | keyof typeof obj)`, not `boolean | keyof typeof obj`
+	const orStrictBetweenIncompatibleTypes = h.orStrict(pickyIsKeyOf(obj), h.boolean/* incompatible type */)
+	if (is(key, orStrictBetweenIncompatibleTypes)) {
 		key satisfies keyof typeof obj
 		// @ts-expect-error
 		key satisfies boolean
 	}
-
+	
 	// and
 	
-	// `and` only accepts predicates that accepts `unknown`
+	// `and` only accepts validators that requires `unknown`
 	h.and(
 		// @ts-expect-error
 		pickyIsKeyOf(
 			obj
 		)
 	)
-	if (h.and(h.isKey, h.isString)(x)) x satisfies string
-	if (h.and(h.isString, h.isNumber)(x)) x satisfies never
+	const _=  h.and(h.key, h.string)
+	if (is(x, h.and(h.key, h.string))) x satisfies string
+	if (is(x, h.and(h.string, h.number))) x satisfies never
 	
 	// `andStrict` preserves requirements
-	h.andStrict(pickyIsKeyOf(obj))(
+	is(
 		// @ts-expect-error
-		x
+		x,
+		h.andStrict(pickyIsKeyOf(obj)),
 	)
-	if (h.andStrict(pickyIsKeyOf(obj), h.isString)(key)) {
+	if (is(key, h.andStrict(pickyIsKeyOf(obj), h.string))) {
 		key satisfies keyof typeof obj & string
 		// @ts-expect-error
 		key satisfies never
 	}
-	if (h.andStrict(pickyIsKeyOf(obj), h.isBoolean)(key)) key satisfies never
-}
-
-// we created a function, to prevent scope pollution by an assertion
-() => {
-	const assertString: Asserter<string> = asserterFromPredicate(h.isString)
-	assertString(x)
-	x satisfies string
+	if (is(key, h.andStrict(pickyIsKeyOf(obj), h.boolean))) key satisfies never
 }

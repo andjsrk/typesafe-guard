@@ -5,37 +5,80 @@
  * @template E A type that indicates a validation error.
  * @template Req A requirement for the argument of the function.
  */
-export type Validator<T extends Req, E, Req = unknown> =
-	(x: Req) => ValidationResult<T, E>
+export type IntermediateValidator<T extends Req, E, Req = unknown> =
+	(x: Req) => Generator<E, T, unknown>
+export type AnyIntermediateValidator = IntermediateValidator<any, any, any>
+export type Validator<T, E, Req = unknown> = (x: Req) => Result<T, E>
 
-interface Result<Ok extends boolean> {
-	ok: Ok
-}
 /**
- * An object that indicates success.
- * Contains a value with narrowed type.
+ * A helper type for deriving types from {@linkcode IntermediateValidator}s.
  */
-export interface Ok<T> extends Result<true> {
-	value: T
+export type ValidationTargetOf<Iv extends AnyIntermediateValidator> =
+	Iv extends IntermediateValidator<infer T, any, any>
+		? T
+		: never
+export type RequirementOf<Iv extends AnyIntermediateValidator> =
+	Iv extends IntermediateValidator<any, any, infer Req>
+		? Req
+		: never
+
+export type Result<T, E = string> = Result.Ok<T> | Result.Fail<E>
+export namespace Result {
+	interface ResultBase<Ok extends boolean> {
+		ok: Ok
+	}
+	/**
+	 * An object that indicates a success.
+	 * Contains a value of narrowed type.
+	 */
+	export interface Ok<T> extends ResultBase<true> {
+		value: T
+	}
+	/**
+	 * An object that indicates a failure.
+	 * Contains a reason why the validation failed.
+	 */
+	export interface Fail<E> extends ResultBase<false> {
+		reason: E
+	}
+	
+	export const ok = <T>(value: T): Ok<T> => ({ ok: true, value })
+	export const fail = <E>(reason: E): Fail<E> => ({ ok: false, reason })
 }
+
 /**
- * An object that indicates failure.
- * Contains the reason why the validation failed.
+ * Requires a value to be the given type.
+ * 
+ * NOTE: The body is empty because "yielded something" means
+ * "the generator from the validator will never resume" and we can now assume it is safe to assert.
  */
-export interface Fail<E> extends Result<false> {
-	reason: E
-}
-export type ValidationResult<T, E = string> = Ok<T> | Fail<E>
-
-export type InstantiatedOkFn<T> = typeof ok<T>
-export const ok = <T>(value: T): Ok<T> => ({ ok: true, value })
-
-export type InstantiatedFailFn<E> = typeof fail<E>
-const fail = <E>(reason: E): Fail<E> => ({ ok: false, reason })
+export const require: <T>(x: unknown, ivReturn: T) => asserts x is T = () => {}
 
 /**
  * A helper function for building a validator.
  */
+export const validator = <T extends Req, E, Req>(gf: IntermediateValidator<T, E, Req>): IntermediateValidator<T & Req, E, Req> => gf
+/**
+ * A helper function for building a validator, with an ability to specify target type.
+ */
 export const validatorFor = <T>() =>
-	<E = string, Req = unknown>(f: (x: Req, ok: InstantiatedOkFn<T>, fail: InstantiatedFailFn<E>) => ValidationResult<T & Req, E>): Validator<T & Req, E, Req> =>
-		(x: Req): ValidationResult<T & Req, E> => f(x, ok<T>, fail<E>)
+	<E = string, Req = unknown>(gf: IntermediateValidator<T & Req, E, Req>): IntermediateValidator<T & Req, E, Req> =>
+		validator<T & Req, E, Req>(gf)
+
+/**
+ * Creates a {@linkcode Validator}.
+ */
+export function validate<T extends Req, E, Req>(iv: IntermediateValidator<T, E, Req>): Validator<T, E, Req>
+/**
+ * Validates a value.
+ * 
+ * @returns A {@linkcode Result.Ok} if the validation succeeded, a {@linkcode Result.Fail} otherwise.
+ */
+export function validate<T extends Req, E, Req>(x: NoInfer<Req>, iv: IntermediateValidator<T, E, Req>): Result<T, E>
+export function validate(xOrIv: any, iv?: AnyIntermediateValidator) {
+	if (!iv) return (x: unknown) => validate(x, xOrIv)
+	
+	const res = iv(xOrIv).next()
+	
+	return res.done ? Result.ok(res.value) : Result.fail(res.value)
+}

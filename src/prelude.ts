@@ -1,45 +1,42 @@
-import type { Predicate } from './predicate.js'
-import { type Asserter, asserterFromPredicate } from './asserter.js'
-import { isKeyOf, isNull, isUndefined, not, or } from './helper.js'
+import { assertIs } from './assert.js'
+import { keyOf, null_, undefined_, not, or } from './helper.js'
 
 /**
- * @returns Whether the value is either `null` or `undefined`.
+ * Validates the value is either `null` or `undefined`.
  */
-export const isNullish = or(isNull, isUndefined)
+export const nullish = or(null_, undefined_)
 /**
- * @returns Whether the value is neither `null` nor `undefined`.
+ * Validates the value is neither `null` nor `undefined`.
  * 
- * Note that the function is just a type-casted `not(isNullish)`.
- * In the example below, `not(isNullish)` will not work because
- * `Exclude<unknown, YourType>` will always result `unknown` (except when `YourType` is `unknown`):
+ * Note that in the code below `not<Exclude<T, null | undefined>>()(nullish)` does not work properly because
+ * `Exclude<unknown, YourType>` is always `unknown` (except when `YourType` is `unknown`):
  * @code
  * ```ts
  * function foo<T>(x: T) {
- *   if (not(isNullish)(x)) requiresNonNullishValue(x) // error
+ *   if (is(x, not<Exclude<T, null | undefined>>()(nullish))) requiresNonNullishValue(x) // error
  * }
  * ```
  */
-export const isNotNullish = not(isNullish) as Predicate<{}>
+// NOTE: `{}` means 'any non-nullish types', not something like 'an object with no properties'
+export const notNullish = not<{}>()(nullish)
 
 /**
  * @returns A generator that yields the object's own enumerable property keys (including symbols).
  */
 export function* objectKeys<T extends object>(obj: T) {
-	const assertKey: Asserter<keyof T> = asserterFromPredicate(isKeyOf(obj))
 	for (const key of Reflect.ownKeys(obj)) {
-		assertKey(key)
+		assertIs(key, keyOf(obj))
 		if (!Object.prototype.propertyIsEnumerable.call(obj, key)) continue
-		yield key satisfies keyof T
+		yield key
 	}
 }
 /**
  * @returns A generator that yields the object's own enumerable string property keys.
  */
 export function* objectStringKeys<T extends object>(obj: T) {
-	const assertKey: Asserter<keyof T> = asserterFromPredicate(isKeyOf(obj))
 	for (const key of Object.keys(obj)) {
-		assertKey(key)
-		yield key satisfies string & keyof T
+		assertIs(key, keyOf(obj))
+		yield key
 	}
 }
 
