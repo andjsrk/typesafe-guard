@@ -1,7 +1,7 @@
 {
 	"name": "typesafe-guard",
 	"description": "A utility for writing type guard type-safely, for TypeScript",
-	"version": "0.4.0",
+	"version": "0.4.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/andjsrk/typesafe-guard.git"
@@ -16,10 +16,12 @@
 	},
 	"scripts": {
 		"build": "tsc",
-		"test": "tsc -p tsconfig.test.json && echo all tests passed",
+		"test": "tsx test/all.ts",
 		"prepublishOnly": "npm run build"
 	},
 	"devDependencies": {
+		"@types/node": "^22.13.4",
+		"tsx": "^4.19.3",
 		"typescript": "^5.7.3"
 	},
 	"files": [

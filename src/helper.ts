@@ -1,7 +1,7 @@
-import { type AnyIntermediateValidator, type IntermediateValidator, validator, validatorFor, validate, type ValidationTargetOf, type RequirementOf } from './validator.js'
+import { type AnyIntermediateValidator, type IntermediateValidator, validator, validatorFor, validate, type ValidationTargetOf, type ValidationErrorOf, type RequirementOf, wrapError, type ErrorWithCause } from './validator.js'
 import { is } from './predicate.js'
 
-type Expand<O> = O extends O ? O : never
+type RealPropertyKey = string | symbol
 
 type UnionToIntersection<U> =
 	(U extends U ? (_: U) => void : never) extends ((_: infer I) => void)
@@ -17,7 +17,10 @@ type ExtractTIntoTuple<IvU extends AnyIntermediateValidator> =
 	IvU extends IntermediateValidator<infer T, any, any>
 		? [T]
 		: never
-
+type ExtractReqIntoTuple<IvU extends AnyIntermediateValidator> =
+	IvU extends IntermediateValidator<any, any, infer Req>
+		? [Req]
+		: never
 /**
  * Validates the value does not pass the given validator.
  * 
@@ -67,37 +70,49 @@ export const instanceOf = <T>(Class: abstract new (...args: any) => T) =>
 // to not to be confused with `AnyIntermediateValidator`, a type alias with clear intention is defined
 type AnyUnknownRequirementIntermediateValidator = IntermediateValidator<any, any>
 
+/**
+ * Validates {@linkcode a} then {@linkcode b}, on the value.
+ * 
+ * @example
+ * ```ts
+ * const objWithSomeProp = validator(function*(x) {
+ *   const obj = yield* object(x)
+ *   const withSomeProp = yield* keys({ someProp: string })(obj)
+ *   return withSomeProp
+ * })
+ * // instead of above, we can write
+ * const objWithSomeProp = pipe(object, keys({ someProp: string }))
+ * ```
+ */
+export const pipe = <T2 extends Req2, E1, E2, Req1, Req2 extends Req1>(
+	a: IntermediateValidator<Req2, E1, Req1>,
+	b: IntermediateValidator<T2, E2, Req2>,
+) =>
+	validator<T2, E1 | E2, Req1>(function*(x) {
+		return yield* b(yield* a(x))
+	})
+
+type MergeRequirements<IvU extends AnyIntermediateValidator> =
+	(UnionToIntersection<ExtractReqIntoTuple<IvU>> & [unknown])[0]
+
 type OrResult<Ivs extends AnyIntermediateValidator> =
 	[Ivs] extends [never]
 		? unknown
 		: ValidationTargetOf<Ivs>
 /**
  * Validates the value passes any of the given validators.
- * 
- * @param ivs Note that the validators must accept `unknown`
- * because there is no safe and convenient way to require multiple non-`unknown` types at the same time.
+ * Note that the validator requires an intersection of the requirement of the given validators.
  */
-export const or = <Ivs extends Array<AnyUnknownRequirementIntermediateValidator>>(...ivs: Ivs) =>
-	validator(function*(x) {
+export const or = <Ivs extends Array<AnyIntermediateValidator>>(...ivs: Ivs) =>
+	validator<OrResult<Ivs[number]> & MergeRequirements<Ivs[number]>, string, MergeRequirements<Ivs[number]>>(function*(x) {
 		for (const iv of ivs) {
-			if (is(x, iv)) return x as OrResult<Ivs[number]>
+			if (is(x, iv)) return x as any
 		}
 		throw yield 'The value did not passed any of the given validators.'
 	})
 
-type ExtractStrictBase<ValidatorU extends AnyIntermediateValidator> =
-	UnionToIntersection<RequirementOf<ValidatorU>>
-/**
- * Unlike {@linkcode or}, the validator that returned by this function accepts
- * an intersection of the requirement of the validators.
- * 
- * {@linkcode or}
- */
-export const orStrict = <Ivs extends Array<AnyIntermediateValidator>>(...ivs: Ivs) =>
-	or(...ivs) as IntermediateValidator<OrResult<Ivs[number]> & ExtractStrictBase<Ivs[number]>, string, ExtractStrictBase<Ivs[number]>>
-
-type And<IvU extends AnyIntermediateValidator, Strict extends boolean = false> =
-	[(Strict extends true ? ExtractStrictBase<IvU> : unknown)] extends [infer Req]
+type And<IvU extends AnyIntermediateValidator> =
+	[MergeRequirements<IvU>] extends [infer Req]
 		? IntermediateValidator<
 			[IvU] extends [never]
 				? Req
@@ -108,26 +123,15 @@ type And<IvU extends AnyIntermediateValidator, Strict extends boolean = false> =
 			Req
 		>
 		: never
-
 /**
  * Validates the value passes all given validators.
- * 
- * @param ivs Note that the validators must accept `unknown`
- * because there is no safe and convenient way to require multiple non-`unknown` types at the same time.
+ * Note that the validator requires an intersection of the requirement of the given validators.
  */
-export const and = <Ivs extends Array<AnyUnknownRequirementIntermediateValidator>>(...ivs: Ivs) =>
+export const and = <Ivs extends Array<AnyIntermediateValidator>>(...ivs: Ivs) =>
 	validator(function*(x) {
 		for (const iv of ivs) yield* iv(x)
-		return x as ValidationTargetOf<And<Ivs[number]>>
-	})
-/**
- * Unlike {@linkcode and}, the validator that returned by this function accepts
- * an intersection of the requirement of the validators.
- * 
- * {@linkcode and}
- */
-export const andStrict = <Ivs extends Array<AnyIntermediateValidator>>(...ivs: Ivs) =>
-	and(...ivs) as And<Ivs[number], true>
+		return x
+	}) as And<Ivs[number]>
 
 /**
  * Note that the validator narrows the value to `any`, which is unsafe but convenient.
@@ -222,46 +226,30 @@ export const function_ = validatorFor<Function>()(function*(x) {
  * Validates the value is an object.
  */
 export const object = validatorFor<object>()(function*(x) {
-	if (typeof x != 'object') throw yield 'The value is not an object.'
+	// NOTE: functions are objects as well
+	if (typeof x == 'object' && x !== null || typeof x == 'function') return x
 	
-	return yield* not<{}>()(null_)(x)
+	throw yield 'The value is not an object.'
 })
 
-type ExtractEachValidationTarget<Src extends Record<any, AnyIntermediateValidator> | ReadonlyArray<AnyIntermediateValidator>> =
-	{ [K in keyof Src]: Src[K] extends AnyIntermediateValidator ? ValidationTargetOf<Src[K]> : Src[K] }
-type PropsResolved<P extends Record<PropertyKey, AnyIntermediateValidator>> =
-	Expand<ExtractEachValidationTarget<P>>
 /**
- * Validates the value is an object with specific properties.
+ * Validates the value is either `null` or `undefined`.
  */
-export const objectWithProps: {
-	<
-		Props extends Record<PropertyKey, AnyIntermediateValidator>,
-		OptProps extends Record<PropertyKey, AnyIntermediateValidator>,
-	>(props: Props, optionalProps: OptProps):
-		IntermediateValidator<object & PropsResolved<Props> & Partial<PropsResolved<OptProps>>, string>
-	<
-		Props extends Record<PropertyKey, AnyIntermediateValidator>,
-	>(props: Props):
-		IntermediateValidator<object & PropsResolved<Props>, string>
-} = (
-	props: Record<PropertyKey, AnyIntermediateValidator>,
-	optionalProps: Record<PropertyKey, AnyIntermediateValidator> = {}, // TODO: better design for optional properties
-) =>
-	validatorFor<object>()(function*(x) {
-		const obj = yield* object(x)
-		const keyOfObj = keyOf(obj)
-		
-		for (const key in props) {
-			const objKey = yield* keyOfObj(key)
-			yield* props[objKey](obj[objKey])
-		}
-		for (const key in optionalProps) {
-			if (is(key, keyOfObj)) yield* props[key](obj[key])
-		}
-		
-		return obj
-	})
+export const nullish = or(null_, undefined_)
+/**
+ * Validates the value is neither `null` nor `undefined`.
+ * 
+ * Note that in the code below `not<Exclude<T, null | undefined>>()(nullish)` does not work properly because
+ * `Exclude<unknown, YourType>` is always `unknown` (except when `YourType` is `unknown`):
+ * @code
+ * ```ts
+ * function foo<T>(x: T) {
+ *   if (is(x, not<Exclude<T, null | undefined>>()(nullish))) requiresNonNullishValue(x) // error
+ * }
+ * ```
+ */
+// NOTE: `{}` means 'any non-nullish types', not something like 'an object with no properties'
+export const notNullish = not<{}>()(nullish)
 
 /**
  * Validates the value is a {@linkcode PropertyKey}.
@@ -270,16 +258,169 @@ export const propertyKey: IntermediateValidator<PropertyKey, string> = or(string
 /**
  * Validates the value is a key (either a string or a symbol).
  */
-export const key: IntermediateValidator<PropertyKey, string> = or(string, symbol)
+export const key = or(string, symbol)
+export interface KeyOfOptions {
+	/**
+	 * Whether the key should be an own property of the object.
+	 * 
+	 * @default true
+	 */
+	own?: boolean
+}
 /**
- * Validates the value is an own key of the given object.
+ * Validates the key is in the given object.
+ * 
+ * @see {@linkcode KeyOfOptions}
  */
-export const keyOf = <T extends object>(obj: T) =>
-	validatorFor<keyof T>()(function*(x) {
-		const k = yield* key(x)
-		if (!Object.prototype.hasOwnProperty.call(obj, k)) throw yield 'The key is not in the given object.'
-		return k as keyof T
+export const strictKeyOf = <T extends object>(obj: T, { own = true }: KeyOfOptions = {}) =>
+	validatorFor<keyof T>()(function*(key: PropertyKey) {
+		if (own) {
+			if (!Object.prototype.hasOwnProperty.call(obj, key)) {
+				throw yield `The given object does not contain own property '${key.toString()}'.`
+			}
+		} else {
+			if (!(key in obj)) {
+				throw yield `The given object does not contain property '${key.toString()}'.`
+			}
+		}
+		
+		return key as PropertyKey & keyof T
 	})
+/**
+ * {@linkcode strictKeyOf} that accepts any value.
+ * 
+ * @see {@linkcode KeyOfOptions}
+ */
+export const keyOf = <T extends object>(obj: T, opts: KeyOfOptions = {}) =>
+	pipe(key, strictKeyOf(obj, opts))
+
+export interface PropOptions<P extends boolean = false> extends KeyOfOptions {
+	/**
+	 * Whether the key is not required.
+	 * 
+	 * @default false
+	 */
+	partial?: P
+}
+// reduces { key?: unknown } to {}
+// reduces {} to unknown - the reduced result will be intersected with `object`, so this is ok
+type ReduceProps<P> =
+	P extends P
+		// NOTE: `Pick` preserves whether the property is optional
+		// { key?: unknown } extends { key: 0 } is false
+		// { key?: unknown } extends { key: unknown } is false
+		// { key?: unknown } extends { key?: unknown } is true
+		? { [K in keyof P as Partial<Record<K, unknown>> extends Pick<P, K> ? never : K]: P[K] } extends infer OptionalUnknownRemoved
+			? {} extends Required<OptionalUnknownRemoved>
+				? unknown
+				: OptionalUnknownRemoved
+			: never
+		: never
+type PropsReq<Defs extends Record<RealPropertyKey, AnyIntermediateValidator>> =
+	ReduceProps<{ [K in keyof Defs]?: RequirementOf<Defs[K]> }>
+type PropsReturn<Defs extends Record<RealPropertyKey, AnyIntermediateValidator>, P extends boolean> =
+	ReduceProps<
+		{ [K in keyof Defs]: Extract<ValidationTargetOf<Defs[K]>, RequirementOf<Defs[K]>> } extends infer Ts
+			? P extends true
+				? Partial<Ts>
+				: Ts
+			: never
+	>
+type PropError<VIv extends AnyIntermediateValidator> =
+	VIv extends VIv
+		? string | ErrorWithCause<string, ValidationErrorOf<VIv>>
+		: never
+/**
+ * Validates the object has specific property a value that passes the given validator.
+ */
+export const strictProp = <
+	K extends RealPropertyKey,
+	VIv extends AnyIntermediateValidator,
+	P extends boolean = false,
+>(
+	key: K,
+	valueIv: VIv,
+	{
+		partial = false as P,
+		...opts
+	}: PropOptions<P> = {},
+) =>
+	validator(function*(obj: Record<any, any>) {
+		const res = validate(key, strictKeyOf(obj, opts))
+		if (!res.ok) {
+			if (partial) return obj
+			else throw yield res.reason
+		}
+		
+		const k = res.value
+		const v = obj[k]
+		
+		yield* wrapError(
+			valueIv,
+			`The value of property '${k.toString()}' did not pass the given validator.`,
+		)(v as any)
+		
+		return obj
+	}) as any as (
+		PropsReq<Record<K, VIv>> extends infer Req
+			? IntermediateValidator<
+				object & PropsReturn<Record<K, VIv>, P> & Req,
+				PropError<VIv>,
+				object & Req
+			>
+			: never
+	)
+/**
+ * {@linkcode strictProp} that accepts any value.
+ * 
+ * @see {@linkcode PropOptions}
+ */
+export const prop = <
+	K extends RealPropertyKey,
+	VIv extends AnyIntermediateValidator,
+	P extends boolean = false,
+>(
+	key: K,
+	valueIv: VIv,
+	opts: PropOptions<P> = {},
+) =>
+	pipe(object, strictProp(key, valueIv, opts))
+
+type ExtractEachValidationTarget<Src extends Record<any, AnyIntermediateValidator> | ReadonlyArray<AnyIntermediateValidator>> =
+	{ [K in keyof Src]: Src[K] extends AnyIntermediateValidator ? ValidationTargetOf<Src[K]> : Src[K] }
+export interface PropsOptions<P extends boolean = false> extends PropOptions<P> {
+}
+/**
+ * Validates the object has specific properties and each property value passes the given validator.
+ */
+export const strictProps = <
+	Defs extends Record<RealPropertyKey, AnyIntermediateValidator>,
+	P extends boolean = false
+>(defs: Defs, opts: PropsOptions<P> = {}) =>
+	validator(function*(obj: object) { // NOTE: the validator requires `object` because `in` operator throws on non-object values
+		for (const key of Reflect.ownKeys(defs)) {
+			yield* strictProp(key, defs[key], opts)(obj)
+		}
+		return obj
+	}) as (
+		PropsReq<Defs> extends infer Req
+			? IntermediateValidator<
+				object & PropsReturn<Defs, P> & Req,
+				PropError<Defs[keyof Defs]>,
+				object & Req
+			>
+			: never
+	)
+/**
+ * {@linkcode strictProps} that accepts any value.
+ * 
+ * @see {@linkcode PropsOptions}
+ */
+export const props = <
+	Defs extends Record<RealPropertyKey, AnyIntermediateValidator>,
+	P extends boolean = false
+>(defs: Defs, opts: PropsOptions<P> = {}) =>
+	pipe(object, strictProps(defs, opts))
 
 /**
  * Note that the narrowing type is `Array<any>`, which is unsafe but convenient.
@@ -303,8 +444,11 @@ export const arrayOf = <T, E>(iv: IntermediateValidator<T, E>) =>
 		
 		let idx = 0
 		for (const elem of arr) {
-			const res = validate(elem, iv)
-			if (!res.ok) throw yield [`There is an element that did not pass the given validator at index ${idx}.`, res.reason]
+			yield* wrapError(
+				iv,
+				`There is an element that did not pass the given validator at index ${idx}.`
+			)(elem)
+			
 			idx += 1
 		}
 		

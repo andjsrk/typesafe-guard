@@ -1,4 +1,11 @@
-export { type IntermediateValidator, type Validator, type ValidationTargetOf, type RequirementOf, Result, validator, validatorFor, require, validate } from './validator.js'
+export {
+	type IntermediateValidator, type Validator, type ValidationTargetOf, type ValidationErrorOf, type RequirementOf,
+	validator, validatorFor,
+	require,
+	wrapError, type ErrorWithCause,
+	validate,
+	type Result, type Ok, type Fail, ok, fail,
+} from './validator.js'
 export * from './predicate.js'
 export * from './assert.js'
 export * from './helper.js'

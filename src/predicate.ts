@@ -1,4 +1,4 @@
-import { AnyIntermediateValidator, validate, type IntermediateValidator } from './validator.js'
+import { validate, type IntermediateValidator } from './validator.js'
 
 /**
  * @returns A predicate function that returns whether the value passes the given validator.
@@ -8,8 +8,12 @@ export function is<T extends Req, Req>(iv: IntermediateValidator<T, any, Req>): 
  * @returns Whether the value passes the given validator.
  */
 export function is<T extends Req, Req>(x: NoInfer<Req>, iv: IntermediateValidator<T, any, Req>): x is T & Req
-export function is(xOrIv: any, iv?: AnyIntermediateValidator) {
-	if (!iv) return (x: unknown) => is(xOrIv)(x)
+export function is<T extends Req, Req>(
+	...[xOrIv, iv]:
+		| [x: NoInfer<Req>, iv: IntermediateValidator<T, any, Req>]
+		| [iv: IntermediateValidator<T, any, Req>, _?: never]
+) {
+	if (!iv) return (x: Req) => is(x, xOrIv)
 	
 	return validate(xOrIv, iv).ok
 }

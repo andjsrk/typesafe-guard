@@ -1,31 +1,12 @@
+import { strictKeyOf } from './helper.js'
 import { assertIs } from './assert.js'
-import { keyOf, null_, undefined_, not, or } from './helper.js'
-
-/**
- * Validates the value is either `null` or `undefined`.
- */
-export const nullish = or(null_, undefined_)
-/**
- * Validates the value is neither `null` nor `undefined`.
- * 
- * Note that in the code below `not<Exclude<T, null | undefined>>()(nullish)` does not work properly because
- * `Exclude<unknown, YourType>` is always `unknown` (except when `YourType` is `unknown`):
- * @code
- * ```ts
- * function foo<T>(x: T) {
- *   if (is(x, not<Exclude<T, null | undefined>>()(nullish))) requiresNonNullishValue(x) // error
- * }
- * ```
- */
-// NOTE: `{}` means 'any non-nullish types', not something like 'an object with no properties'
-export const notNullish = not<{}>()(nullish)
 
 /**
  * @returns A generator that yields the object's own enumerable property keys (including symbols).
  */
 export function* objectKeys<T extends object>(obj: T) {
 	for (const key of Reflect.ownKeys(obj)) {
-		assertIs(key, keyOf(obj))
+		assertIs(key, strictKeyOf(obj))
 		if (!Object.prototype.propertyIsEnumerable.call(obj, key)) continue
 		yield key
 	}
@@ -35,7 +16,7 @@ export function* objectKeys<T extends object>(obj: T) {
  */
 export function* objectStringKeys<T extends object>(obj: T) {
 	for (const key of Object.keys(obj)) {
-		assertIs(key, keyOf(obj))
+		assertIs(key, strictKeyOf(obj))
 		yield key
 	}
 }
