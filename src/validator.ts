@@ -65,6 +65,15 @@ export const ok = <T>(value: T): Ok<T> => ({ ok: true, value })
 export const fail = <E>(reason: E): Fail<E> => ({ ok: false, reason })
 
 /**
+ * @returns A validator that applies the transform function to the errors.
+ */
+export const mapError = <T extends Req, Cause, Req, E>(iv: IntermediateValidator<T, Cause, Req>, transform: (cause: Cause) => E) =>
+	validator(function*(x: Req) {
+		const res = validate(x, iv)
+		if (!res.ok) throw yield transform(res.reason)
+		return res.value
+	})
+/**
  * Indicates an error with a cause.
  */
 export type ErrorWithCause<E, Cause> = [E, Cause]
@@ -72,11 +81,7 @@ export type ErrorWithCause<E, Cause> = [E, Cause]
  * Wraps the validator to throw the given error with the original error as the cause, if the validation failed.
  */
 export const wrapError = <T extends Req, Cause, Req, E>(iv: IntermediateValidator<T, Cause, Req>, error: E) =>
-	validator<T, ErrorWithCause<E, Cause>, Req>(function*(x) {
-		const res = validate(x, iv)
-		if (!res.ok) throw yield [error, res.reason]
-		return res.value
-	})
+	mapError(iv, (origErr): ErrorWithCause<E, Cause> => [error, origErr])
 
 /**
  * Requires a value to be the given type.

@@ -2,7 +2,7 @@ export {
 	type IntermediateValidator, type Validator, type ValidationTargetOf, type ValidationErrorOf, type RequirementOf,
 	validator, validatorFor,
 	require,
-	wrapError, type ErrorWithCause,
+	mapError, wrapError, type ErrorWithCause,
 	validate,
 	type Result, type Ok, type Fail, ok, fail,
 } from './validator.js'

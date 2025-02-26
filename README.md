@@ -25,12 +25,15 @@ interface User {
 	age: number
 }
 const User = validatorFor<User>()(function*(x) {
-	const user = yield* objectWithProps({
+	// we do not `throw` errors, we `yield` errors
+	// so delegate an error from `props` if present, otherwise take the value with narrowed type
+	const user = yield* props({
 		name: string,
 		age: number,
 	})(x)
 	
-	// you can make the validation fail, by `throw yield ...`
+	// you can make the validation fail by `throw yield ...`
+	// note that we still need `throw` while yielding errors, to block resuming the generator
 	if (user.age <= 0) throw yield 'The user\'s age is not positive.'
 	
 	return user
@@ -74,7 +77,7 @@ assertIs(someValue, User)
 you can use the assertion function `require()`:
 ```ts
 validatorFor<User>()(function*(x) {
-	require(x, yield* objectWithProps({
+	require(x, yield* props({
 		name: string,
 		age: number,
 	})(x))
@@ -84,13 +87,13 @@ validatorFor<User>()(function*(x) {
 })
 ```
 
-:information_source: You can write a validator first, then derive a type from the validator:
+:information_source: You can write a validator first, then derive a type from it:
 ```ts
 const User = validator(function*(x) {
-	const user = yield* objectWithProps({
+	const user = yield* props({
 		name: string,
 		age: number,
-	})
+	})(x)
 	
 	return user
 })
@@ -104,12 +107,12 @@ type User = ValidationTargetOf<typeof User>
 :information_source: If your validator is just a combination of other validators,
 you can just eject the contents of the validator:
 ```ts
-const User = objectWithProps({
+const User = props({
 	name: string,
 	age: number,
 })
 // or if you want to check its type
-const User = validatorFor<User>()(objectWithProps({
+const User = validatorFor<User>()(props({
 	name: string,
 	age: number,
 }))

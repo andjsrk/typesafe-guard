@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 import * as h from '../src/helper.js'
-import { type IntermediateValidator, validate } from '../src/validator.js'
+import { type IntermediateValidator, validate, ValidationTargetOf } from '../src/validator.js'
 import { is } from '../src/predicate.js'
 import { compileOnly } from './common.js'
 
@@ -81,11 +81,13 @@ testHelper(
 		bar: '',
 	}
 	compileOnly(() => {
-		h.strictKeyOf( // primitive values are not accepted
+		// primitive values are not accepted
+		h.strictKeyOf(
 			// @ts-expect-error
 			0
 		)
-		h.strictKeyOf(obj)( // has a requirement
+		// has a requirement
+		h.strictKeyOf(obj)(
 			// @ts-expect-error
 			true
 		)
@@ -107,10 +109,25 @@ testHelper(
 		// requires nothing
 		h.keyOf(obj)(true)
 	})
+	
+	testHelper(
+		h.propValueOf(obj),
+		{
+			ok: [0, ''],
+			fail: [undefined, 1, 'abc'],
+		},
+		x => x === 0 || x === '',
+		(x, pass) =>
+			pass(x)
+				? x satisfies typeof obj[keyof typeof obj]
+				// @ts-expect-error
+				: x satisfies typeof obj[keyof typeof obj]
+	)
 }
 
 compileOnly(() => {
-	h.strictProp('foo', h.string)( // has a requirement
+	// has a requirement
+	h.strictProp('foo', h.string)(
 		// @ts-expect-error
 		0
 	)
@@ -158,10 +175,24 @@ compileOnly(() => {
 	// requires nothing
 	h.prop('foo', h.string)(0)
 })
+testHelper(
+	h.looseProp('length', h.number),
+	{
+		ok: ['', []],
+		fail: [null, 0, {}],
+	},
+	x => 'length' in Object(x) && typeof (x as any).length == 'number',
+	(x, pass) =>
+		pass(x)
+			? x satisfies { length: number }
+			// @ts-expect-error
+			: x satisfies { length: number }
+)
 
 // NOTE: `props` relies on `prop`
 compileOnly(() => {
-	h.strictProps({})( // has a requirement
+	// has a requirement
+	h.strictProps({})(
 		// @ts-expect-error
 		0
 	)
@@ -196,6 +227,24 @@ testHelper(
 	}
 )
 testHelper(
+	h.strictProps({ foo: h.string }, { allowExtra: false }),
+	{
+		ok: [{ foo: '' }],
+		fail: [{ foo: '', bar: 0, }],
+	},
+	x => Reflect.ownKeys(x).length <= ['foo'].length,
+	() => {} // type checking is meaningless here
+)
+testHelper(
+	h.strictProps({ foo: h.string, bar: h.number }, { partial: true, allowExtra: false }),
+	{
+		ok: [{ foo: '' }, { bar: 0 }],
+		fail: [{ baz: true }, { foo: '', baz: true }, { foo: '', bar: 0, baz: true }],
+	},
+	x => new Set(Reflect.ownKeys(x)).difference(new Set(['foo', 'bar'])).size <= 0,
+	() => {} // type checking is meaningless here
+)
+testHelper(
 	h.strictProps({}),
 	{
 		ok: [emptyObj],
@@ -211,10 +260,26 @@ testHelper(
 			: x satisfies never
 )
 compileOnly(() => {
-	h.props({})(
-		// requires nothing
-		0
-	)
+	// requires nothing
+	h.props({})(0)
+})
+
+testHelper(
+	h.strictDict(h.string, h.number),
+	{
+		ok: [{ a: 0 }, { a: 0, b: 1 }],
+		fail: [{ [Symbol()]: 0 }, { a: '' }, { a: 0, b: '' }],
+	},
+	x => Reflect.ownKeys(x).every(key => typeof key == 'string' && typeof x[key as never] == 'number'),
+	(x, pass) =>
+		pass(x)
+			? x satisfies Record<string, number>
+			// @ts-expect-error
+			: x satisfies Record<string, number>
+)
+compileOnly(() => {
+	// requires nothing
+	h.dict(h.string, h.number)(0)
 })
 
 testHelper(
@@ -370,6 +435,28 @@ testHelper(
 			// @ts-expect-error
 			: x satisfies 0
 )
+
+compileOnly(() => {
+	type Expected = 0 | 1 | 2
+	
+	const iv = h.oneOf(0, 1, 2)
+	iv satisfies IntermediateValidator<Expected, any>
+	0 as Expected satisfies ValidationTargetOf<typeof iv>
+})
+declare const gen: Generator<0 | 1 | 2>
+compileOnly(() => {
+	type Expected = 0 | 1 | 2
+	
+	// currently const generics cannot infer type correctly from generators
+	// @ts-expect-error
+	h.oneOf(...gen) satisfies IntermediateValidator<Expected, any>
+	// @ts-expect-error
+	h.oneOf(...gen) satisfies IntermediateValidator<number, any> // not even `number`
+	
+	const iv = h.looseOneOf(...gen)
+	iv satisfies IntermediateValidator<Expected, any>
+	0 as Expected satisfies ValidationTargetOf<typeof iv>
+})
 
 {
 	class A { foo = '' }
